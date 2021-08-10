@@ -104,7 +104,7 @@ static amqp_bytes_t setup_queue(amqp_connection_state_t conn, char *queue,
 
 static void do_consume(amqp_connection_state_t conn, amqp_bytes_t queue,
                        int no_ack, int count, int prefetch_count,
-                       const char *const *argv) {
+                       const char *const *argv, int exit_on_failure) {
   int i;
 
   /* If there is a limit, set the qos to match */
@@ -150,10 +150,15 @@ static void do_consume(amqp_connection_state_t conn, amqp_bytes_t queue,
     pipeline(argv, &pl);
     copy_body(conn, pl.infd);
 
-    if (finish_pipeline(&pl) && !no_ack)
+    int retval = finish_pipeline(&pl);
+
+    if (retval && !no_ack)
       die_amqp_error(amqp_basic_ack(conn, 1, delivery_tag, 0), "basic.ack");
 
     amqp_maybe_release_buffers(conn);
+
+    if(!retval && exit_on_failure)
+      break;
   }
 }
 
@@ -169,6 +174,7 @@ int main(int argc, const char **argv) {
   static int no_ack = 0;
   static int count = -1;
   static int prefetch_count = -1;
+  static int exit_on_failure = 0;
   amqp_bytes_t queue_bytes;
 
   struct poptOption options[] = {
@@ -190,6 +196,8 @@ int main(int argc, const char **argv) {
        "stop consuming after this many messages are consumed", "limit"},
       {"prefetch-count", 'p', POPT_ARG_INT, &prefetch_count, 0,
        "receive only this many message at a time from the server", "limit"},
+      {"exit-on-failure", 'x', POPT_ARG_NONE, &exit_on_failure, 0,
+       "exit the process on command failure", NULL},
       POPT_AUTOHELP{NULL, '\0', 0, NULL, 0, NULL, NULL}};
 
   opts = process_options(argc, argv, options, "[OPTIONS]... <command> <args>");
@@ -204,7 +212,7 @@ int main(int argc, const char **argv) {
   conn = make_connection();
   queue_bytes =
       setup_queue(conn, queue, exchange, routing_key, declare, exclusive);
-  do_consume(conn, queue_bytes, no_ack, count, prefetch_count, cmd_argv);
+  do_consume(conn, queue_bytes, no_ack, count, prefetch_count, cmd_argv, exit_on_failure);
   close_connection(conn);
   return 0;
 
