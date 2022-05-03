@@ -1,6 +1,8 @@
 // Copyright 2007 - 2021, Alan Antonuk and the rabbitmq-c contributors.
 // SPDX-License-Identifier: mit
 
+#define OPENSSL_NO_DEPRECATED_3_0 1
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
