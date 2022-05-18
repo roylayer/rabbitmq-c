@@ -394,6 +394,11 @@ int amqp_ssl_socket_set_key(amqp_socket_t *base, const char *cert,
   return AMQP_STATUS_OK;
 }
 
+#ifdef _USING_OPENSSL_3_
+int amqp_ssl_socket_set_key_engine(amqp_socket_t *, const char *, const char *) {
+  return AMQP_STATUS_SSL_ERROR;
+}
+#else
 int amqp_ssl_socket_set_key_engine(amqp_socket_t *base, const char *cert,
                                    const char *key) {
   int status;
@@ -421,12 +426,18 @@ int amqp_ssl_socket_set_key_engine(amqp_socket_t *base, const char *cert,
   }
   return AMQP_STATUS_OK;
 }
+#endif
 
 static int password_cb(AMQP_UNUSED char *buffer, AMQP_UNUSED int length,
                        AMQP_UNUSED int rwflag, AMQP_UNUSED void *user_data) {
   amqp_abort("rabbitmq-c does not support password protected keys");
 }
 
+#ifdef _USING_OPENSSL_3_
+int amqp_ssl_socket_set_key_buffer(amqp_socket_t *, const char *, const void *, size_t ) {
+  return AMQP_STATUS_SSL_ERROR;
+}
+#else
 int amqp_ssl_socket_set_key_buffer(amqp_socket_t *base, const char *cert,
                                    const void *key, size_t n) {
   int status = AMQP_STATUS_OK;
@@ -464,6 +475,7 @@ error:
   status = AMQP_STATUS_SSL_ERROR;
   goto exit;
 }
+#endif
 
 int amqp_ssl_socket_set_cert(amqp_socket_t *base, const char *cert) {
   int status;
@@ -651,6 +663,11 @@ out:
   return status;
 }
 
+#ifdef _USING_OPENSSL_3_
+int amqp_set_ssl_engine(const char *) {
+  return AMQP_STATUS_SSL_SET_ENGINE_FAILED;
+}
+#else
 int amqp_set_ssl_engine(const char *engine) {
   int status = AMQP_STATUS_OK;
   CHECK_SUCCESS(pthread_mutex_lock(&openssl_init_mutex));
@@ -687,6 +704,7 @@ out:
   CHECK_SUCCESS(pthread_mutex_unlock(&openssl_init_mutex));
   return status;
 }
+#endif
 
 static int initialize_ssl_and_increment_connections() {
   int status;
@@ -749,7 +767,9 @@ int amqp_uninitialize_ssl_library(void) {
   }
 
   if (openssl_engine != NULL) {
+#ifndef _USING_OPENSSL_3_
     ENGINE_free(openssl_engine);
+#endif
     openssl_engine = NULL;
   }
 
